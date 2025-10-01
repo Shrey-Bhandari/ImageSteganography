@@ -117,3 +117,6 @@ if __name__ == "__main__":
     # 4. Decrypt
     recovered = decrypt_message(nonce, extracted, tag, key)
     print("Recovered Message:", recovered)
+    
+    # 5. Debug view – see pixel differences
+    compare_images("test2.jpg", "stego2.png")
