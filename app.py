@@ -13,14 +13,19 @@ def decrypt_message(nonce, ciphertext, tag, key):
     decrypted = cipher.decrypt_and_verify(ciphertext, tag)
     return decrypted.decode()
 
+# Binary conversion
+def to_binary(data):
+    """Convert bytes to binary string"""
+    return ''.join(format(byte, '08b') for byte in data)
+
+def from_binary(binary_str):
+    """Convert binary string back to bytes"""
+    return bytes(int(binary_str[i:i+8], 2) for i in range(0, len(binary_str), 8))
+
 if __name__ == "__main__":
-    key = get_random_bytes(16)  # AES-128 key
-    message = "Hello Boss, AES is working!"
-
-    # Encrypt
-    nonce, ciphertext, tag = encrypt_message(message, key)
-    print("Ciphertext:", ciphertext)
-
-    # Decrypt
-    recovered = decrypt_message(nonce, ciphertext, tag, key)
-    print("Recovered:", recovered)
+    sample = b"Hi"
+    binary = to_binary(sample)
+    print("Binary:", binary)
+    
+    restored = from_binary(binary)
+    print("Restored:", restored.decode())
