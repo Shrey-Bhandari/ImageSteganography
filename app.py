@@ -22,6 +22,30 @@ def from_binary(binary_str):
     """Convert binary string back to bytes"""
     return bytes(int(binary_str[i:i+8], 2) for i in range(0, len(binary_str), 8))
 
+#LSB Image Encoding
+from PIL import Image
+import numpy as np
+
+def encode_image(image_path, data, output_path):
+    img = Image.open(image_path)
+    img = img.convert('RGB')
+    arr = np.array(img)
+
+    binary_data = to_binary(data)
+    data_len = len(binary_data)
+    idx = 0
+
+    for row in arr:
+        for pixel in row:
+            for n in range(3):  # R, G, B
+                if idx < data_len:
+                    pixel[n] = (pixel[n] & ~1) | int(binary_data[idx])
+                    idx += 1
+
+    stego = Image.fromarray(arr)
+    stego.save(output_path)
+    print(f"Data hidden in {output_path}")
+
 if __name__ == "__main__":
     sample = b"Hi"
     binary = to_binary(sample)
