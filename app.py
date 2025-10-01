@@ -33,16 +33,21 @@ def encode_image(image_path, data, output_path):
 
     binary_data = to_binary(data)
     data_len = len(binary_data)
-    idx = 0
 
+    # capacity = pixels * 3 (RGB channels)
+    capacity = arr.size  
+    if data_len > capacity:
+        raise ValueError("Data too large to hide in this image!")
+
+    idx = 0
     for row in arr:
         for pixel in row:
-            for n in range(3):  # R, G, B
+            for n in range(3):
                 if idx < data_len:
-                    pixel[n] = (pixel[n] & ~1) | int(binary_data[idx])
+                    pixel[n] = np.uint8((int(pixel[n]) & ~1) | int(binary_data[idx]))
                     idx += 1
 
-    stego = Image.fromarray(arr)
+    stego = Image.fromarray(arr.astype(np.uint8))
     stego.save(output_path)
     print(f"Data hidden in {output_path}")
 
