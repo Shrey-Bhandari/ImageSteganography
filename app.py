@@ -46,6 +46,21 @@ def encode_image(image_path, data, output_path):
     stego.save(output_path)
     print(f"Data hidden in {output_path}")
 
+#LSB Image Decoding
+def decode_image(image_path, length):
+    img = Image.open(image_path)
+    arr = np.array(img)
+
+    binary_data = ""
+    idx = 0
+    for row in arr:
+        for pixel in row:
+            for n in range(3):
+                if idx < length * 8:  # only extract required length
+                    binary_data += str(pixel[n] & 1)
+                    idx += 1
+    return from_binary(binary_data)
+
 if __name__ == "__main__":
     sample = b"Hi"
     binary = to_binary(sample)
