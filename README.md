@@ -1,5 +1,3 @@
-Absolutely, Boss. For your **AES + Image Steganography PBL project**, here’s a clean, professional **README.md** you can drop into your repo. It’s structured to impress evaluators and easy for anyone to run your project.
-
 ---
 
 # 🔐 Image Steganography with AES
