@@ -21,8 +21,8 @@ def check_message_fit(image_path, message: bytes, bits_per_channel=1):
     return can_embed, capacity, message_size
 
 if __name__ == "__main__":
-    msg = "Confidential: Cybersecurity PBL!".encode("utf-8")
-    image_path = "test.png"  # change this to your image path
+    msg = "Kavya's hidden love".encode("utf-8")
+    image_path = "test2.jpg"  # change this to your image path
 
     check_message_fit(image_path, msg)
 
