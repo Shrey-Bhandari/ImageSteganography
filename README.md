@@ -81,8 +81,8 @@ ImageSteganography/
 1. **Clone Repo**
 
    ```bash
-   git clone https://github.com/your-username/ImageSteganographyAES.git
-   cd ImageSteganographyAES
+   git clone https://github.com/your-username/ImageSteganography.git
+   cd ImageSteganography
    ```
 
 2. **Install Dependencies**
