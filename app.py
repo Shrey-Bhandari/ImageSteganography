@@ -61,10 +61,21 @@ def decode_image(image_path, length):
                     idx += 1
     return from_binary(binary_data)
 
+#Full Workflow Demo
 if __name__ == "__main__":
-    sample = b"Hi"
-    binary = to_binary(sample)
-    print("Binary:", binary)
-    
-    restored = from_binary(binary)
-    print("Restored:", restored.decode())
+    key = get_random_bytes(16)
+    message = "Confidential: Cybersecurity PBL!"
+
+    # 1. Encrypt
+    nonce, ciphertext, tag = encrypt_message(message, key)
+    print("Ciphertext:", ciphertext)
+
+    # 2. Hide ciphertext in image
+    encode_image("test.png", ciphertext, "stego.png")
+
+    # 3. Extract ciphertext
+    extracted = decode_image("stego.png", len(ciphertext))
+
+    # 4. Decrypt
+    recovered = decrypt_message(nonce, extracted, tag, key)
+    print("Recovered Message:", recovered)
