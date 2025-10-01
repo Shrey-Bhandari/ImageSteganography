@@ -66,6 +66,39 @@ def decode_image(image_path, length):
                     idx += 1
     return from_binary(binary_data)
 
+# Image Comparison
+def compare_images(original_path, stego_path, limit=50):
+    """
+    Compare original and stego images, print which pixels changed (LSB differences).
+    limit = max number of changes to print (to avoid flooding console).
+    """
+    orig = Image.open(original_path).convert("RGB")
+    stego = Image.open(stego_path).convert("RGB")
+
+    arr_orig = np.array(orig)
+    arr_stego = np.array(stego)
+
+    changes = []
+    total_changed = 0
+
+    for i in range(arr_orig.shape[0]):
+        for j in range(arr_orig.shape[1]):
+            for c in range(3):  # R, G, B
+                if arr_orig[i, j, c] != arr_stego[i, j, c]:
+                    total_changed += 1
+                    if len(changes) < limit:
+                        changes.append(
+                            f"Pixel({i},{j}) Channel[{c}] "
+                            f"Orig={arr_orig[i,j,c]} "
+                            f"Stego={arr_stego[i,j,c]}"
+                        )
+
+    print(f"\n🔍 Total pixels changed: {total_changed}")
+    for line in changes:
+        print(line)
+    if total_changed > limit:
+        print(f"... and {total_changed - limit} more changes not shown.")
+        
 #Full Workflow Demo
 if __name__ == "__main__":
     key = get_random_bytes(16)
