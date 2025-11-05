@@ -1,0 +1,15 @@
+flask
+flask-socketio
+pillow
+pycryptodome
+numpy
+python-socketio
+eventlet
+bidict
+werkzeug
+click
+itsdangerous
+jinja2
+markupsafe
+python-engineio
+six

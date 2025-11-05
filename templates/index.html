@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Steganography Chat</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <div class="login-container" id="login-container">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Enter your username" />
+        </div>
+        <div class="form-group">
+          <label for="room-id">Room ID</label>
+          <input
+            type="text"
+            id="room-id"
+            placeholder="Enter room ID to join or create"
+          />
+        </div>
+        <div class="form-group">
+          <label for="base-image">Your Base Image</label>
+          <input type="file" id="base-image" accept="image/*" required />
+          <div id="image-preview" class="image-preview"></div>
+        </div>
+        <button class="btn" onclick="joinRoom()">Join Room</button>
+      </div>
+
+      <div class="chat-container hidden" id="chat-container">
+        <div class="room-info">
+          <h3>Room: <span id="current-room"></span></h3>
+          <div class="user-list">
+            <h4>Online Users</h4>
+            <ul id="users-in-room"></ul>
+          </div>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input">
+          <input
+            type="text"
+            id="message-input"
+            placeholder="Type your message..."
+          />
+          <button onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+      let socket = io();
+      let username = "";
+      let currentRoom = "";
+      let userBaseImage = null;
+
+      // Handle image preview
+      document
+        .getElementById("base-image")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+              userBaseImage = e.target.result;
+              const preview = document.getElementById("image-preview");
+              preview.innerHTML = `<img src="${userBaseImage}" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+
+      function joinRoom() {
+        username = document.getElementById("username").value;
+        currentRoom = document.getElementById("room-id").value;
+
+        if (!username || !currentRoom || !userBaseImage) {
+          alert("Please enter username, room ID, and select a base image");
+          return;
+        }
+
+        socket.emit("join", {
+          username: username,
+          room: currentRoom,
+          baseImage: userBaseImage,
+        });
+
+        document.getElementById("login-container").classList.add("hidden");
+        document.getElementById("chat-container").classList.remove("hidden");
+        document.getElementById("current-room").textContent = currentRoom;
+      }
+
+      function sendMessage() {
+        const messageInput = document.getElementById("message-input");
+        const message = messageInput.value;
+
+        if (message.trim()) {
+          socket.emit("message", {
+            room: currentRoom,
+            message: message,
+            username: username,
+          });
+          messageInput.value = "";
+        }
+      }
+
+      socket.on("error", function (data) {
+        alert(data.message);
+      });
+
+      socket.on("room_update", function (data) {
+        const userList = document.getElementById("users-in-room");
+        userList.innerHTML = "";
+        // Sort members to maintain consistent order
+        const sortedMembers = [...new Set(data.members)].sort();
+        sortedMembers.forEach((member) => {
+          const li = document.createElement("li");
+          li.textContent = member + (member === username ? " (You)" : "");
+          li.classList.add("user-item");
+          if (member === username) {
+            li.classList.add("current-user");
+          }
+          userList.appendChild(li);
+        });
+      });
+
+      socket.on("message", function (data) {
+        const messagesDiv = document.getElementById("chat-messages");
+        const messageDiv = document.createElement("div");
+        messageDiv.classList.add("message");
+        messageDiv.classList.add(
+          data.username === username ? "sent" : "received"
+        );
+
+        // Sender label (like WhatsApp)
+        const senderLabel = document.createElement("div");
+        senderLabel.classList.add("message-sender");
+        senderLabel.textContent =
+          data.username === "System"
+            ? ""
+            : data.username === username
+            ? "You"
+            : data.username;
+        if (senderLabel.textContent) {
+          messageDiv.appendChild(senderLabel);
+        }
+
+        const messageContent = document.createElement("div");
+        messageContent.classList.add("message-content");
+
+        const img = document.createElement("img");
+        img.src = data.image_url;
+        messageContent.appendChild(img);
+
+        const decodeButton = document.createElement("button");
+        decodeButton.classList.add("decode-btn");
+        decodeButton.textContent = "👁️ Decode";
+        messageContent.appendChild(decodeButton);
+
+        const decodedText = document.createElement("div");
+        decodedText.classList.add("decoded-text");
+        decodedText.classList.add("hidden");
+        messageContent.appendChild(decodedText);
+
+        messageDiv.appendChild(messageContent);
+        messagesDiv.appendChild(messageDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        // Store the encrypted data for decoding
+        messageDiv.dataset.nonce = data.nonce || "";
+        messageDiv.dataset.tag = data.tag || "";
+        messageDiv.dataset.length = data.length || "";
+
+        decodeButton.addEventListener("click", async function () {
+          if (decodedText.classList.contains("hidden")) {
+            try {
+              const response = await fetch("/decode", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  image: data.image_url.split(",")[1],
+                  nonce: messageDiv.dataset.nonce,
+                  tag: messageDiv.dataset.tag,
+                  length: messageDiv.dataset.length,
+                  room: currentRoom,
+                }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                decodedText.textContent = result.message;
+                decodedText.classList.remove("hidden");
+                decodeButton.textContent = "🔒 Hide";
+              }
+            } catch (error) {
+              console.error("Error decoding message:", error);
+            }
+          } else {
+            decodedText.classList.add("hidden");
+            decodeButton.textContent = "👁️ Decode";
+          }
+        });
+      });
+
+      document
+        .getElementById("message-input")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            sendMessage();
+          }
+        });
+    </script>
+  </body>
+</html>

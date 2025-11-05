@@ -25,9 +25,18 @@ def from_binary(binary_str):
 #LSB Image Encoding
 from PIL import Image
 import numpy as np
+import io
 
-def encode_image(image_path, data, output_path):
-    img = Image.open(image_path)
+def encode_image(input_img, data, output):
+    """
+    input_img: can be a file path (str) or a file-like object
+    output: can be a file path (str) or a file-like object
+    """
+    if isinstance(input_img, (str, bytes)):
+        img = Image.open(input_img)
+    else:
+        img = Image.open(input_img)
+    
     img = img.convert('RGB')
     arr = np.array(img)
 
@@ -48,12 +57,22 @@ def encode_image(image_path, data, output_path):
                     idx += 1
 
     stego = Image.fromarray(arr.astype(np.uint8))
-    stego.save(output_path)
-    print(f"Data hidden in {output_path}")
+    
+    if isinstance(output, (str, bytes)):
+        stego.save(output, 'PNG')
+    else:
+        stego.save(output, format='PNG')
 
 #LSB Image Decoding
-def decode_image(image_path, length):
-    img = Image.open(image_path)
+def decode_image(input_img, length):
+    """
+    input_img: can be a file path (str) or a file-like object
+    """
+    if isinstance(input_img, (str, bytes)):
+        img = Image.open(input_img)
+    else:
+        img = Image.open(input_img)
+    
     arr = np.array(img)
 
     binary_data = ""
