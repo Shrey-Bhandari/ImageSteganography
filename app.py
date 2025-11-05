@@ -139,3 +139,4 @@ if __name__ == "__main__":
     
     # 5. Debug view – see pixel differences
     compare_images("test2.jpg", "stego2.png")
+    
