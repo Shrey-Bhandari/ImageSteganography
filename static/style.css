@@ -154,6 +154,28 @@ body {
     border-radius: 4px;
 }
 
+/* Image upload preview (keeps uploaded image inside a fixed box) */
+.image-preview {
+    margin-top: 10px;
+    width: 100%;
+    max-width: 220px; /* limit preview width in sidebar */
+    height: 180px; /* fixed preview box to avoid layout shifts */
+    overflow: hidden;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+}
+
+.image-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain; /* show whole image without cropping */
+    display: block;
+    margin: 0;
+}
+
 .btn {
     width: 100%;
     padding: 10px;
