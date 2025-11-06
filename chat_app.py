@@ -39,7 +39,11 @@ P_HEX = (
     "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
     "29024E088A67CC74020BBEA63B139B22514A08798E3404DD"
     "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245"
-    "E485B576625E7EC6F44C42E9A63A3620FFFFFFFFFFFFFFFF"
+    "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
+    "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D"
+    "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F"
+    "83655D23DCA3AD961C62F356208552BB9ED529077096966D"
+    "670C354E4ABC9804F1746C08CA237327FFFFFFFFFFFFFFFF"
 )
 DH_P = int(P_HEX, 16)
 DH_G = 2
@@ -126,14 +130,14 @@ def process_message(message, key, username):
         except Exception as e:
             print(f"Error converting image to base64: {e}")
             raise
-        
-            return {
-                'image': img_base64,
-                'nonce': base64.b64encode(nonce).decode(),
-                'tag': base64.b64encode(tag).decode(),
-                'length': len(ciphertext),
-                'ciphertext': base64.b64encode(ciphertext).decode()
-            }
+
+        return {
+            'image': img_base64,
+            'nonce': base64.b64encode(nonce).decode(),
+            'tag': base64.b64encode(tag).decode(),
+            'length': len(ciphertext),
+            'ciphertext': base64.b64encode(ciphertext).decode()
+        }
     except Exception as e:
         print(f"Error in process_message: {str(e)}")
         raise
