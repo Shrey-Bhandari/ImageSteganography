@@ -127,12 +127,13 @@ def process_message(message, key, username):
             print(f"Error converting image to base64: {e}")
             raise
         
-        return {
-            'image': img_base64,
-            'nonce': base64.b64encode(nonce).decode(),
-            'tag': base64.b64encode(tag).decode(),
-            'length': len(ciphertext)
-        }
+            return {
+                'image': img_base64,
+                'nonce': base64.b64encode(nonce).decode(),
+                'tag': base64.b64encode(tag).decode(),
+                'length': len(ciphertext),
+                'ciphertext': base64.b64encode(ciphertext).decode()
+            }
     except Exception as e:
         print(f"Error in process_message: {str(e)}")
         raise
@@ -206,7 +207,8 @@ def on_join(data):
                 'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
                 'nonce': encrypted_msg['nonce'],
                 'tag': encrypted_msg['tag'],
-                'length': encrypted_msg['length']
+                'length': encrypted_msg['length'],
+                'ciphertext': encrypted_msg.get('ciphertext')
             }, room=room)
 
         # Send updated user list to all members in the room
@@ -244,7 +246,8 @@ def on_disconnect():
                                 'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
                                 'nonce': encrypted_msg['nonce'],
                                 'tag': encrypted_msg['tag'],
-                                'length': encrypted_msg['length']
+                                'length': encrypted_msg['length'],
+                                'ciphertext': encrypted_msg.get('ciphertext')
                             }, room=room)
                         socketio.emit('room_update', {
                             'members': list(set(rooms[room]['members']))  # Remove duplicates
@@ -308,7 +311,8 @@ def on_message(data):
                 'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
                 'nonce': encrypted_msg['nonce'],
                 'tag': encrypted_msg['tag'],
-                'length': encrypted_msg['length']
+                'length': encrypted_msg['length'],
+                'ciphertext': encrypted_msg.get('ciphertext')
             }, room=room)
         else:
             socketio.emit('error', {
@@ -351,6 +355,13 @@ def on_dh_client_public(data):
         rooms[room]['key'] = key
         rooms[room]['dh'] = {}
         socketio.emit('dh_ok', {'room': room}, room=request.sid)
+        # Also emit the derived key for client console (debug only)
+        socketio.emit('dh_key', {
+            'room': room,
+            'key_hex': key.hex(),
+            'A': A_hex,
+            'B': format(dh_state.get('B', 0), 'x')
+        }, room=request.sid)
         # Send welcome message after key establishment
         username = user_sessions.get(request.sid, 'User')
         try:
@@ -361,7 +372,8 @@ def on_dh_client_public(data):
                 'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
                 'nonce': encrypted_msg['nonce'],
                 'tag': encrypted_msg['tag'],
-                'length': encrypted_msg['length']
+                'length': encrypted_msg['length'],
+                'ciphertext': encrypted_msg.get('ciphertext')
             }, room=room)
         except Exception as e:
             print(f"Error sending welcome after DH: {e}")

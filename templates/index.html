@@ -145,6 +145,11 @@
         console.log('[DH] Handshake complete for room', data.room);
       });
 
+      // Explicit key log from server (debug only)
+      socket.on('dh_key', (data) => {
+        console.log('[DH] Derived AES-128 key(hex)=', data.key_hex, 'A(hex)=', data.A?.slice(0, 64) + '...', 'B(hex)=', data.B?.slice(0, 64) + '...');
+      });
+
       function sendMessage() {
         const messageInput = document.getElementById("message-input");
         const message = messageInput.value;
@@ -182,6 +187,12 @@
 
       socket.on("message", function (data) {
         console.log('[MSG] Received from', data.username, 'len=', data.length);
+        if (data.ciphertext) {
+          console.log('[AES] Ciphertext(b64)=', (data.ciphertext || '').slice(0, 120) + '...');
+        }
+        if (data.nonce || data.tag) {
+          console.log('[AES] Nonce(b64)=', data.nonce, 'Tag(b64)=', data.tag);
+        }
         const messagesDiv = document.getElementById("chat-messages");
         const messageDiv = document.createElement("div");
         messageDiv.classList.add("message");
