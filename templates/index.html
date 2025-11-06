@@ -58,6 +58,8 @@
       let username = "";
       let currentRoom = "";
       let userBaseImage = null;
+      // DH client state (minimal): private 'a' only during handshake
+      let dh = { a: null };
 
       // Handle image preview
       document
@@ -90,16 +92,65 @@
           baseImage: userBaseImage,
         });
 
+        console.log("[DH] Join: username=", username, "room=", currentRoom);
         document.getElementById("login-container").classList.add("hidden");
         document.getElementById("chat-container").classList.remove("hidden");
         document.getElementById("current-room").textContent = currentRoom;
       }
+
+      // --- Minimal DH helpers (BigInt) ---
+      function toBigInt(hexStr) {
+        return BigInt("0x" + hexStr);
+      }
+
+      function modPow(base, exp, mod) {
+        base = base % mod;
+        let result = 1n;
+        while (exp > 0n) {
+          if (exp & 1n) result = (result * base) % mod;
+          base = (base * base) % mod;
+          exp >>= 1n;
+        }
+        return result;
+      }
+
+      function randomBigInt(bits = 256) {
+        const bytes = Math.ceil(bits / 8);
+        const arr = new Uint8Array(bytes);
+        crypto.getRandomValues(arr);
+        let hex = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+        return BigInt('0x' + hex);
+      }
+
+      // Receive DH params from server and respond with our public A
+      socket.on('dh_params', (data) => {
+        try {
+          const p = toBigInt(data.p);
+          const g = BigInt(data.g);
+          // Generate private a and compute A = g^a mod p
+          dh.a = randomBigInt(256) % (p - 2n) + 2n; // 2..p-1
+          const A = modPow(g, dh.a, p);
+          console.log('[DH] Private a(hex)=', dh.a.toString(16).slice(0, 64) + '...');
+          console.log('[DH] Params received: p_bits=', p.toString(2).length, 'g=', g.toString(), 'B(hex)=', data.B.slice(0, 32) + '...');
+          console.log('[DH] Sending A(hex)=', A.toString(16).slice(0, 32) + '...');
+          socket.emit('dh_client_public', { room: data.room, A: A.toString(16) });
+        } catch (e) {
+          console.error('DH error:', e);
+        }
+      });
+
+      socket.on('dh_ok', (data) => {
+        // Key established server-side; clear ephemeral 'a'
+        dh.a = null;
+        console.log('[DH] Handshake complete for room', data.room);
+      });
 
       function sendMessage() {
         const messageInput = document.getElementById("message-input");
         const message = messageInput.value;
 
         if (message.trim()) {
+          console.log('[MSG] Sending:', message);
           socket.emit("message", {
             room: currentRoom,
             message: message,
@@ -130,6 +181,7 @@
       });
 
       socket.on("message", function (data) {
+        console.log('[MSG] Received from', data.username, 'len=', data.length);
         const messagesDiv = document.getElementById("chat-messages");
         const messageDiv = document.createElement("div");
         messageDiv.classList.add("message");

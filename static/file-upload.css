@@ -1,14 +1,23 @@
+:root {
+    /* WhatsApp-inspired palette fallbacks */
+    --surface-tinted: #f7fdf7;
+    --green-medium: #25d366;
+    --white: #ffffff;
+    --border-medium: #d1d5db;
+}
+
 .image-preview {
-    margin-top: 10px;
+    margin-top: 12px;
     width: 100%;
     max-width: 220px; /* limit preview width in sidebar */
     height: 180px; /* fixed preview box to avoid layout shifts */
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #fafafa;
+    background: var(--surface-tinted);
+    border: 2px dashed var(--border-medium);
 }
 
 .image-preview img {
@@ -19,9 +28,41 @@
 }
 
 input[type="file"] {
-    width: 100%;
+    width: 150px;
+    height: 30px;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    background-color: white;
+    background-color: rgb(152, 152, 152);
+    position: relative;
+    overflow: hidden;
+}
+
+input[type="file"]::-webkit-file-upload-button {
+    visibility: hidden;
+    width: 0;
+}
+
+input[type="file"]::before {
+    content: 'Choose Image';
+    display: inline-block;
+    background: var(--white);
+    border: 1px solid var(--green-medium);
+    border-radius: 6px;
+    padding: 6px 12px;
+    outline: none;
+    white-space: nowrap;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--green-medium);
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: all 0.2s ease;
+}
+
+input[type="file"]:hover::before {
+    background: var(--green-medium);
+    color: var(--white);
 }

@@ -11,6 +11,7 @@ from flask import Flask, render_template, request, send_from_directory, jsonify
 from flask_socketio import SocketIO, join_room, leave_room
 from PIL import Image
 from Crypto.Random import get_random_bytes
+import hashlib
 from app import encrypt_message, encode_image, decode_image, decrypt_message
 
 # Create a thread pool for image processing
@@ -32,6 +33,22 @@ image_cache = {}
 # Store user sessions
 user_sessions = {}  # Maps session ID to username
 user_rooms = {}    # Maps username to room
+
+# Minimal Diffie–Hellman parameters (RFC 3526 group 14: 2048-bit MODP)
+P_HEX = (
+    "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
+    "29024E088A67CC74020BBEA63B139B22514A08798E3404DD"
+    "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245"
+    "E485B576625E7EC6F44C42E9A63A3620FFFFFFFFFFFFFFFF"
+)
+DH_P = int(P_HEX, 16)
+DH_G = 2
+
+# Debug logging helper
+DEBUG = True
+def dbg(msg):
+    if DEBUG:
+        print(f"[DEBUG] {msg}")
 
 def resize_image(img_data):
     """Resize image to optimal size for steganography"""
@@ -87,7 +104,9 @@ def process_message(message, key, username):
         
         # Encrypt message
         try:
+            dbg(f"AES key(hex)={key.hex()} for {username}")
             nonce, ciphertext, tag = encrypt_message(message, key)
+            dbg(f"Encrypted for {username}: nonce={base64.b64encode(nonce).decode()} tag={base64.b64encode(tag).decode()} ct_len={len(ciphertext)}")
         except Exception as e:
             print(f"Error during encryption: {e}")
             raise
@@ -156,25 +175,39 @@ def on_join(data):
 
         if room not in rooms:
             rooms[room] = {
-                'key': get_random_bytes(16),
-                'members': []
+                'key': None,  # will be established via DH
+                'members': [],
+                'dh': {}
             }
 
         # Append and keep order, remove accidental duplicates
         rooms[room]['members'].append(username)
         rooms[room]['members'] = list(dict.fromkeys(rooms[room]['members']))
 
-        # Only send the welcome message for a newly joined user
-        welcome_msg = f"Welcome {username} to room {room}!"
-        encrypted_msg = process_message(welcome_msg, rooms[room]['key'], username)
-
-        socketio.emit('message', {
-            'username': 'System',
-            'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
-            'nonce': encrypted_msg['nonce'],
-            'tag': encrypted_msg['tag'],
-            'length': encrypted_msg['length']
-        }, room=room)
+        # If no key yet, start DH with this user; else, send welcome immediately
+        if rooms[room]['key'] is None:
+            import secrets
+            b = secrets.randbelow(DH_P - 2) + 2  # secret in [2, P-1]
+            B = pow(DH_G, b, DH_P)
+            rooms[room]['dh'] = {'b': b, 'B': B}
+            dbg(f"DH start room={room}: p_bits={DH_P.bit_length()} g={DH_G} b(hex)={format(b,'x')[:64]}... B(hex)={format(B, 'x')[:64]}...")
+            socketio.emit('dh_params', {
+                'p': format(DH_P, 'x'),
+                'g': str(DH_G),
+                'B': format(B, 'x'),
+                'room': room
+            }, room=request.sid)
+        else:
+            dbg(f"Room {room} key already established; skipping DH.")
+            welcome_msg = f"Welcome {username} to room {room}!"
+            encrypted_msg = process_message(welcome_msg, rooms[room]['key'], username)
+            socketio.emit('message', {
+                'username': 'System',
+                'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
+                'nonce': encrypted_msg['nonce'],
+                'tag': encrypted_msg['tag'],
+                'length': encrypted_msg['length']
+            }, room=room)
 
         # Send updated user list to all members in the room
         socketio.emit('room_update', {
@@ -204,14 +237,15 @@ def on_disconnect():
                     # Notify remaining users
                     if rooms[room]['members']:  # If there are still members in the room
                         leave_msg = f"{username} has left the room."
-                        encrypted_msg = process_message(leave_msg, rooms[room]['key'], rooms[room]['members'][0])
-                        socketio.emit('message', {
-                            'username': 'System',
-                            'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
-                            'nonce': encrypted_msg['nonce'],
-                            'tag': encrypted_msg['tag'],
-                            'length': encrypted_msg['length']
-                        }, room=room)
+                        if rooms[room].get('key'):
+                            encrypted_msg = process_message(leave_msg, rooms[room]['key'], rooms[room]['members'][0])
+                            socketio.emit('message', {
+                                'username': 'System',
+                                'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
+                                'nonce': encrypted_msg['nonce'],
+                                'tag': encrypted_msg['tag'],
+                                'length': encrypted_msg['length']
+                            }, room=room)
                         socketio.emit('room_update', {
                             'members': list(set(rooms[room]['members']))  # Remove duplicates
                         }, room=room)
@@ -228,18 +262,22 @@ def decode_message():
         return jsonify({'success': False, 'error': 'Invalid room'})
 
     try:
+        if rooms[data['room']].get('key') is None:
+            return jsonify({'success': False, 'error': 'Room key not established yet'})
         # Convert base64 image to bytes
         image_data = base64.b64decode(data['image'])
         input_buffer = io.BytesIO(image_data)
-        
+
         # Decode the message
         ciphertext = decode_image(input_buffer, int(data['length']))
-        
+
         # Decrypt the message
         nonce = base64.b64decode(data['nonce'])
         tag = base64.b64decode(data['tag'])
+        dbg(f"Decrypt with key(hex)={rooms[data['room']]['key'].hex()} nonce={base64.b64encode(nonce).decode()} tag={base64.b64encode(tag).decode()} ct_len={len(ciphertext)}")
         message = decrypt_message(nonce, ciphertext, tag, rooms[data['room']]['key'])
-        
+        dbg(f"Decoded message in room={data['room']}: {message}")
+
         return jsonify({'success': True, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -250,6 +288,7 @@ def on_message(data):
         room = data['room']
         message = data['message']
         username = data['username']
+        dbg(f"on_message: room={room} user={username} msg_len={len(message) if isinstance(message, str) else 'n/a'}")
         
         # Verify the user is actually in the room and session is valid
         if (request.sid in user_sessions and 
@@ -258,7 +297,10 @@ def on_message(data):
             username in rooms[room]['members'] and 
             username in user_images):
             
-            # Process message with room's key and user's base image
+            # Process message only if room key is ready
+            if rooms[room].get('key') is None:
+                socketio.emit('error', {'message': 'Room key not established yet'}, room=request.sid)
+                return
             encrypted_msg = process_message(message, rooms[room]['key'], username)
             
             socketio.emit('message', {
@@ -277,6 +319,54 @@ def on_message(data):
         socketio.emit('error', {
             'message': 'Failed to send message'
         }, room=request.sid)
+
+# --- DH completion: client sends public 'A' and we derive the room key ---
+@socketio.on('dh_client_public')
+def on_dh_client_public(data):
+    try:
+        room = data.get('room')
+        A_hex = data.get('A')
+        if not room or room not in rooms or not A_hex:
+            socketio.emit('error', {'message': 'Invalid DH data'}, room=request.sid)
+            return
+        # If key already set, just ack
+        if rooms[room].get('key'):
+            socketio.emit('dh_ok', {'room': room}, room=request.sid)
+            return
+        dh_state = rooms[room].get('dh', {})
+        b = dh_state.get('b')
+        if b is None:
+            socketio.emit('error', {'message': 'DH state missing'}, room=request.sid)
+            return
+        try:
+            A = int(A_hex, 16)
+        except Exception:
+            socketio.emit('error', {'message': 'Invalid DH public value'}, room=request.sid)
+            return
+        # Compute shared secret s = A^b mod p
+        s = pow(A, b, DH_P)
+        s_bytes = s.to_bytes((s.bit_length() + 7) // 8, byteorder='big') or b"\x00"
+        key = hashlib.sha256(s_bytes).digest()[:16]
+        dbg(f"DH complete room={room}: A(hex)={A_hex} b(hex)={format(b,'x')} shared_s(hex)={s_bytes.hex()} key(hex)={key.hex()}")
+        rooms[room]['key'] = key
+        rooms[room]['dh'] = {}
+        socketio.emit('dh_ok', {'room': room}, room=request.sid)
+        # Send welcome message after key establishment
+        username = user_sessions.get(request.sid, 'User')
+        try:
+            welcome_msg = f"Welcome {username} to room {room}!"
+            encrypted_msg = process_message(welcome_msg, key, username)
+            socketio.emit('message', {
+                'username': 'System',
+                'image_url': f"data:image/png;base64,{encrypted_msg['image']}",
+                'nonce': encrypted_msg['nonce'],
+                'tag': encrypted_msg['tag'],
+                'length': encrypted_msg['length']
+            }, room=room)
+        except Exception as e:
+            print(f"Error sending welcome after DH: {e}")
+    except Exception as e:
+        print(f"Error in DH completion: {e}")
 
 if __name__ == '__main__':
     # Check if port 5000 is available, if not try 5001
